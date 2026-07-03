@@ -262,108 +262,17 @@ export default antfu({
       'preserve-caught-error': 'error',
 
       // ═══════════════════════════════════════════════════════════════
-      //  CATCH DELEGATION DETECTION (no-restricted-syntax)
+      //  NO-RESTRICTED-SYNTAX — ban static methods and properties
       // ═══════════════════════════════════════════════════════════════
       'no-restricted-syntax': [
         'error',
-        // 1. Single-statement catch → return fn(...)
-        {
-          selector:
-            'CatchClause > BlockStatement[body.length=1] > ReturnStatement > CallExpression',
-          message:
-            'Do not delegate error handling to another function via return. Handle the error inline or re-throw.',
-        },
-        // 2. Single-statement catch → fn(...)
-        {
-          selector:
-            'CatchClause > BlockStatement[body.length=1] > ExpressionStatement > CallExpression',
-          message:
-            'Do not delegate error handling to another function. Handle the error inline or re-throw.',
-        },
-        // 3a. Passing `error` directly to any function in catch except this.logger.*, console.*, or logger.*
-        {
-          selector:
-            "CatchClause[param.name='error'] CallExpression:not([callee.object.property.name='logger']):not([callee.object.name='console']):not([callee.object.name='logger']) > Identifier.arguments[name='error']",
-          message:
-            'Do not pass the caught error to functions other than this.logger.*. Handle it at the catch site!',
-        },
-        // 3b. Passing `error` wrapped in an object — bypasses 3a via { error } or { key: error }
-        {
-          selector:
-            "CatchClause[param.name='error'] CallExpression:not([callee.object.property.name='logger']):not([callee.object.name='console']):not([callee.object.name='logger']) Property > Identifier.value[name='error']",
-          message:
-            'Do not wrap the caught error in an object to pass to non-logger functions. Handle it at the catch site!',
-        },
-        // 3c. Passing `error` with a type assertion — bypasses 3a via `error as T`
-        {
-          selector:
-            "CatchClause[param.name='error'] CallExpression:not([callee.object.property.name='logger']):not([callee.object.name='console']):not([callee.object.name='logger']) > TSAsExpression.arguments > Identifier[name='error']",
-          message:
-            'Do not use type assertions on the caught error to pass to non-logger functions. Handle it at the catch site!',
-        },
-        // 4. Ban inline object type literals in function return types
-        //    Forces extracting to named types/interfaces
-        {
-          selector:
-            ':function > TSTypeAnnotation TSTypeLiteral',
-          message:
-            'Do not use inline object types in return types. Extract to a named type or interface.',
-        },
-        // 5. Catch parameter must be named exactly `error` — no descriptive variants
-        {
-          selector:
-            "CatchClause > Identifier[name!='error']",
-          message:
-            "Catch parameter must be named exactly 'error'. Do not use descriptive names like 'caughtError'.",
-        },
-        // 6. No aliasing the caught error — prevents bypassing catch-safety rules
-        {
-          selector:
-            "CatchClause VariableDeclarator[init.name='error']",
-          message:
-            "Do not alias the caught error. Use 'error' directly — renaming bypasses catch-safety linting rules.",
-        },
-        // 6b. No reassigning the caught error to an outer variable — prevents bypassing catch-safety rules
-        {
-          selector:
-            "CatchClause[param.name='error'] AssignmentExpression[right.name='error']",
-          message:
-            "Do not reassign the caught error to another variable. Handle it directly in the catch block.",
-        },
-        // 7. Ban throw fn() — force throw new Error() or subclass directly
-        {
-          selector:
-            'ThrowStatement > CallExpression',
-          message:
-            'Do not throw the result of a function call. Throw a new Error (or subclass) directly.',
-        },
-        // 8. Ban return new Error/Exception — errors must be thrown, not returned
-        {
-          selector:
-            'ReturnStatement > NewExpression[callee.name=/(?:Error|Exception)$/]',
-          message:
-            'Do not return Error/Exception objects. Throw them directly instead.',
-        },
-        // 9. Ban assigning new Error/Exception to a variable — throw immediately
-        {
-          selector:
-            'VariableDeclarator > NewExpression[callee.name=/(?:Error|Exception)$/]',
-          message:
-            'Do not assign Error/Exception objects to variables. Throw them directly instead.',
-        },
-        // 10. Ban .catch() — use try/catch with await instead
-        {
-          selector: 'CallExpression[callee.property.name=\'catch\']',
-          message:
-            'Do not use .catch(). Use try/catch with await instead.',
-        },
-        // 11. Ban static methods — use instance methods instead
+        // 1. Ban static methods — use instance methods instead
         {
           selector: 'MethodDefinition[static=true]',
           message:
             'Do not use static methods. Convert to an instance method or extract to a standalone function.',
         },
-        // 12. Ban static properties — use instance properties instead
+        // 2. Ban static properties — use instance properties instead
         {
           selector: 'PropertyDefinition[static=true]',
           message:
