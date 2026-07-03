@@ -146,3 +146,6 @@ node_modules
 dist
 *.log
 .DS_Store
+.specs/scratchpad/*.md
+.specs/analysis/*.md
+.specs/reports/*.md
