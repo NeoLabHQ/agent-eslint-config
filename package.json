@@ -13,10 +13,9 @@
     "url": "https://github.com/NeoLabHQ/agent-eslint-config/issues"
   },
   "exports": {
-    ".": "./dist/index.cjs",
+    ".": "./dist/index.mjs",
     "./package.json": "./package.json"
   },
-  "main": "./dist/index.cjs",
   "types": "./dist/index.d.cts",
   "files": [
     "dist"
