@@ -15,6 +15,10 @@ In order to make code even more strict, add this to your `tsconfig.json`:
 ```json
 {
   "compilerOptions": {
+    "baseUrl": "./",
+    "paths": {
+      "@/*": ["./src/*"]
+    },
     "strict": true
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": true,
