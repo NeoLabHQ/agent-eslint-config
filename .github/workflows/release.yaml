@@ -9,9 +9,15 @@ permissions:
   contents: write
 
 jobs:
+  # Run the verify workflow first and only publish if it succeeds
+  verify:
+    name: Verify
+    uses: ./.github/workflows/verify.yaml
+
   # Based on https://semantic-release.gitbook.io/semantic-release/recipes/ci-configurations/github-actions#node-project-configuration
   release:
     name: Release
+    needs: verify
     runs-on: ubuntu-latest
     environment: Production
     permissions:
