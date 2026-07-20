@@ -159,390 +159,375 @@ Then include them in your `package.json`:
 
 ## Examples
 
-Each example shows a `// bad` block that violates the listed rules and a `// good` block that satisfies them. Blocks are kept as close as possible so the difference is only what the rules require. The `// bad` blocks may trip additional rules beyond those listed.
+Examples of code before and after linting. For more examples, see the [`demo/fixtures/`](demo/fixtures/) directory.
 
-### Complex function
 
-*Demonstrates: `max-params`, `max-depth`, `sonarjs/cognitive-complexity`, `step-down-rule/step-down`.*
+### 1. Decompose a monolithic function
+
+Bad code:
 
 ```ts
-// bad
-// - max-params: `grade` takes 4 parameters (limit 3)
-// - max-depth: three nested blocks (limit 2)
-// - sonarjs/cognitive-complexity: nested ifs score 6 (limit 4)
-// - step-down-rule/step-down: callee `label` is defined before its caller `grade`
-function label(total: number): string {
-  return total >= 90 ? 'A' : 'F'
+interface RegisteredUser {
+  id: string
+  email: string
+  passwordHash: string
 }
 
-function grade(score: number, bonus: number, penalty: number, curve: number): string {
-  let total = score + bonus - penalty
-  if (curve > 0) {
-    if (total < 100) {
-      if (total > 0) {
-        total = total + curve
+const registry: RegisteredUser[] = []
+
+async function processUserRegistration(input: unknown): Promise<RegisteredUser> {
+  const data = input as any                           
+  if (!data.email || typeof data.email !== 'string') throw new Error('email is required')
+  if (!data.password || typeof data.password !== 'string') throw new Error('password is required')
+  const email = data.email.trim().toLowerCase()
+  if (!email.includes('@')) throw new Error('invalid email')
+  let hash = ''
+  for (const character of data.password) {
+    if (typeof character === 'string') {
+      hash = hash + String(character.charCodeAt(0) * 31 % 255)
+    }
+  }
+  for (const existing of registry) {
+    if (existing.email === email) {
+      throw new Error('email already registered')
+    }
+  }
+  const user = { id: String(registry.length + 1), email, passwordHash: hash }
+  registry.push(user)
+  const name = data.name ? String(data.name) : email
+  console.error('welcome ' + name)
+  console.error('sending confirmation to ' + email)
+  await Promise.resolve()
+
+  return user
+}
+```
+
+Good code:
+
+```ts
+interface RegistrationInput {
+  email: string
+  password: string
+}
+
+interface RegisteredUser {
+  id: string
+  email: string
+  passwordHash: string
+}
+
+const registry: RegisteredUser[] = []
+
+/**
+ * Registers a user: validate, normalize, persist, then notify.
+ * @param input The untrusted registration payload.
+ * @returns The persisted user record.
+ */
+export async function processUserRegistration(input: unknown): Promise<RegisteredUser> {
+  const valid = validateRegistrationInput(input)
+  const user = normalizeAndHash(valid)
+
+  await persistUser(user)
+  notifyRegistration(user)
+
+  return user
+}
+
+/**
+ * Narrows an untrusted payload into a typed registration input.
+ * @param input The untrusted registration payload.
+ * @returns The validated input.
+ */
+function validateRegistrationInput(input: unknown): RegistrationInput {
+  if (typeof input !== 'object' || input === null) {
+    throw new Error('input must be an object')
+  }
+
+  const record = input as Record<string, unknown>
+
+  if (typeof record.email !== 'string' || !record.email.includes('@')) {
+    throw new Error('a valid email is required')
+  }
+
+  if (typeof record.password !== 'string') {
+    throw new TypeError('a password is required')
+  }
+
+  return { email: record.email, password: record.password }
+}
+
+/**
+ * Normalizes the email and derives a password hash.
+ * @param input The validated registration input.
+ * @returns A user record ready to persist.
+ */
+function normalizeAndHash(input: RegistrationInput): RegisteredUser {
+  const email = input.email.trim().toLowerCase()
+  const codes = Array.from(input.password, character => character.charCodeAt(0) * 31 % 255)
+
+  return { id: String(registry.length + 1), email, passwordHash: codes.join('-') }
+}
+
+/**
+ * Persists a user, rejecting a duplicate email.
+ * @param user The user record to store.
+ */
+async function persistUser(user: RegisteredUser): Promise<void> {
+  const duplicate = registry.some(existing => existing.email === user.email)
+
+  if (duplicate) {
+    throw new Error('email already registered')
+  }
+
+  await Promise.resolve()
+  registry.push(user)
+}
+
+/**
+ * Emits registration notifications for a new user.
+ * @param user The freshly registered user.
+ */
+function notifyRegistration(user: RegisteredUser): void {
+  console.error(`welcome, new user ${user.email}`)
+  console.error(`sending confirmation to ${user.email}`)
+}
+```
+
+### 2. Flatten nested control flow
+
+Bad code:
+
+```ts
+interface User {
+  role: string
+  isDeleted: boolean
+  emailVerified: boolean
+}
+
+declare const db: { users: { findById: (id: string) => Promise<User | null> } }
+
+async function validateUser(userId: string, role: string): Promise<User> {  // jsdoc/require-jsdoc + sonarjs/cognitive-complexity + max-statements
+  if (userId) {
+    const user = await db.users.findById(userId)
+    if (user) {
+      if (!user.isDeleted) {                 // max-depth + sonarjs/nested-control-flow: nested beyond 2 levels
+        if (user.role === role) {
+          if (user.emailVerified) {
+            // happy path buried 5 levels deep
+            return user
+          } else {
+            throw new Error('Email not verified')
+          }
+        } else {
+          throw new Error('Insufficient role')
+        }
+      } else {
+        throw new Error('User is deleted')
+      }
+    } else {
+      throw new Error('User not found')
+    }
+  } else {
+    throw new Error('User ID is required')
+  }
+}
+```
+
+Good code:
+
+```ts
+interface User {
+  role: string
+  isDeleted: boolean
+  emailVerified: boolean
+}
+
+/**
+ * Loads a user and validates it with flat guard clauses.
+ * @param userId The id of the user to load.
+ * @param role The role the user must hold.
+ * @returns The validated, active user.
+ */
+export async function validateUser(userId: string, role: string): Promise<User> {
+  if (!userId) {
+    throw new Error('User ID is required')
+  }
+
+  const user = await database.users.findById(userId)
+
+  assertActiveUser(user, role)
+
+  return user
+}
+
+/**
+ * Asserts the loaded user exists and is eligible for the role.
+ * @param user The loaded user, or null when none was found.
+ * @param role The role the user must hold.
+ */
+function assertActiveUser(user: User | null, role: string): asserts user is User {
+  if (!user) {
+    throw new Error('User not found')
+  }
+
+  if (user.isDeleted) {
+    throw new Error('User is deleted')
+  }
+
+  if (user.role !== role) {
+    throw new Error('Insufficient role')
+  }
+
+  if (!user.emailVerified) {
+    throw new Error('Email not verified')
+  }
+}
+```
+
+### 3. Untangle a complex static-only "helper" class
+
+Bad code:
+
+```ts
+class PricingHelper {                        // unicorn/no-static-only-class + sonarjs/class-name (vague "Helper") + jsdoc/require-jsdoc
+  static VAT = 0.2                           // no-restricted-syntax: static property
+
+  static calc(t: string, qty: number, code: string, member: boolean): number {  // complexity + sonarjs/cognitive-complexity + no-restricted-syntax (static method) + id-length ('t')
+    let price = 0
+
+    if (t === 'book') {
+      price = 10
+    } else if (t === 'game') {
+      price = 40
+    } else if (t === 'film') {
+      price = 20
+    } else {
+      price = 5
+    }
+
+    let total = price * qty
+
+    if (qty > 100) {
+      total = total * 0.8
+    } else if (qty > 50) {
+      total = total * 0.9
+    } else if (qty > 10) {
+      total = total * 0.95
+    }
+
+    if (member) {
+      if (code === 'GOLD') {
+        total = total * 0.85
+      } else if (code === 'SILVER') {
+        total = total * 0.9
       }
     }
-  }
-  return label(total)
-}
-```
 
-```ts
-// good
-interface Grading {
-  score: number
-  bonus: number
-  penalty: number
-  curve: number
-}
+    if (total > 1000) {
+      total = total - 50
+    }
 
-/**
- * Grades a score into a letter.
- * @param input The grading inputs.
- * @returns The letter grade.
- */
-function grade(input: Grading): string {
-  const total = totalScore(input)
-
-  return total >= 90 ? 'A' : 'F'
-}
-
-/**
- * Computes the curved total score.
- * @param input The grading inputs.
- * @returns The total score after applying the curve.
- */
-function totalScore(input: Grading): number {
-  const base = input.score + input.bonus - input.penalty
-
-  return input.curve > 0 && base > 0 ? base + input.curve : base
-}
-```
-
-### Complex class
-
-*Demonstrates: `no-restricted-syntax` (static members), `unicorn/no-static-only-class`, `ts/class-methods-use-this`, `jsdoc/require-jsdoc`.*
-
-```ts
-// bad
-// - no-restricted-syntax: `total` and `increment` are static members
-// - unicorn/no-static-only-class: would also fire if every member were static
-// - ts/class-methods-use-this: `reset` never references `this`
-// - jsdoc/require-jsdoc: no JSDoc on the class or its members
-class Counter {
-  static total = 0
-
-  static increment(): void {
-    Counter.total = Counter.total + 1
-  }
-
-  reset(): void {
-    Counter.total = 0
+    return total + total * PricingHelper.VAT
   }
 }
 ```
 
+Good code:
+
 ```ts
-// good
-/** Counts increments using instance state. */
-class Counter {
-  private total = 0
+interface Order {
+  type: string
+  quantity: number
+  couponCode: string
+  isMember: boolean
+}
+
+/** Prices catalogue orders including quantity, membership discounts, and VAT. */
+export class PricingCalculator {
+  private readonly vatRate = 0.2
+
+  private readonly basePrices: Record<string, number> = { book: 10, game: 40, film: 20 }
+
+  private readonly memberCoupons: Record<string, number> = { GOLD: 0.85, SILVER: 0.9 }
+
+  private readonly bulkTiers = [
+    { min: 100, rate: 0.8 },
+    { min: 50, rate: 0.9 },
+    { min: 10, rate: 0.95 },
+  ]
 
   /**
-   * Adds one to the running total.
-   * @returns The updated total.
+   * Computes the final price of an order including discounts and VAT.
+   * @param order The order to price.
+   * @returns The final price with VAT applied.
    */
-  increment(): number {
-    this.total = this.total + 1
+  price(order: Order): number {
+    const subtotal = this.subtotal(order)
+    const discounted = this.applyDiscounts(subtotal, order)
 
-    return this.total
+    return this.withVat(discounted)
   }
 
   /**
-   * Resets the running total to zero.
-   * @returns The reset total.
+   * Computes the pre-discount subtotal for an order.
+   * @param order The order to price.
+   * @returns The base price multiplied by quantity.
    */
-  reset(): number {
-    this.total = 0
+  private subtotal(order: Order): number {
+    const base = this.basePrices[order.type] ?? 5
 
-    return this.total
-  }
-}
-```
-
-### Error handling
-
-*Demonstrates: `unicorn/catch-error-name`, `sonarjs/no-useless-catch`, `preserve-caught-error`, `ts/only-throw-error`.*
-
-```ts
-// bad
-async function save(): Promise<void> {
-  try {
-    await persist()
-  }
-  catch (err) {                       // unicorn/catch-error-name: rename to `error`
-    throw err                         // sonarjs/no-useless-catch: catch only rethrows
+    return base * order.quantity
   }
 
-  try {
-    await flush()
+  /**
+   * Applies quantity and membership discounts to a subtotal.
+   * @param subtotal The pre-discount subtotal.
+   * @param order The order being priced.
+   * @returns The discounted amount.
+   */
+  private applyDiscounts(subtotal: number, order: Order): number {
+    const afterQuantity = subtotal * this.quantityRate(order.quantity)
+    const afterMember = afterQuantity * this.memberRate(order)
+
+    return afterMember > 1000 ? afterMember - 50 : afterMember
   }
-  catch (error) {
-    if (!error) {
-      throw 'nothing to flush'        // ts/only-throw-error: throwing a raw string, not an Error
+
+  /**
+   * Resolves the quantity discount rate for an order size.
+   * @param quantity The number of items ordered.
+   * @returns A multiplier between 0 and 1.
+   */
+  private quantityRate(quantity: number): number {
+    const tier = this.bulkTiers.find(entry => quantity > entry.min)
+
+    return tier?.rate ?? 1
+  }
+
+  /**
+   * Resolves the membership coupon rate for an order.
+   * @param order The order being priced.
+   * @returns A multiplier between 0 and 1.
+   */
+  private memberRate(order: Order): number {
+    if (!order.isMember) {
+      return 1
     }
-    throw new Error('flush failed')   // preserve-caught-error: missing `{ cause: error }`
+
+    return this.memberCoupons[order.couponCode] ?? 1
+  }
+
+  /**
+   * Adds VAT to an amount.
+   * @param amount The pre-VAT amount.
+   * @returns The amount including VAT.
+   */
+  private withVat(amount: number): number {
+    return amount + amount * this.vatRate
   }
 }
 ```
 
-```ts
-// good
-/**
- * Persists then flushes, wrapping any failure with its original cause.
- */
-async function save(): Promise<void> {
-  try {
-    await persist()
-    await flush()
-  }
-  catch (error) {
-    throw new Error('save failed', { cause: error })
-  }
-}
-```
-
-> The config also steers you away from `.catch()` callbacks via `promise/prefer-await-to-then`. When you do use one, `ts/use-unknown-in-catch-callback-variable` requires its parameter to be typed `unknown` (not `Error` or `any`).
-
-### Naming
-
-*Demonstrates: `sonarjs/class-name`, `sonarjs/function-name`, `sonarjs/variable-name`, `id-length`, `validate-filename/naming-rules`.*
-
-```ts
-// bad — in a file named `string-helper.ts` → validate-filename/naming-rules also fails
-class StringHelper {                     // sonarjs/class-name: contains "Helper"
-  format(s: string): string {            // id-length: `s` is shorter than 3 characters
-    const commonValue = s.trim()         // sonarjs/variable-name: contains "common"
-    return commonValue
-  }
-}
-
-function formatUtil(input: string): string {   // sonarjs/function-name: contains "Util"
-  return input.toUpperCase()
-}
-```
-
-```ts
-// good — in a file named `string-format.ts`
-/**
- * Formats a raw string by trimming and upper-casing it.
- * @param value The string to format.
- * @returns The formatted string.
- */
-function formatName(value: string): string {
-  const trimmed = value.trim()
-
-  return trimmed.toUpperCase()
-}
-```
-
-### Imports & alias
-
-*Demonstrates: `alias/prefer-alias`, `jsdoc/require-jsdoc`.*
-
-```ts
-// bad
-// - alias/prefer-alias: relative import reaches into the source directory
-// - jsdoc/require-jsdoc: the consuming function has no JSDoc block
-import { createUser } from '../services/user'
-
-function register(name: string): string {
-  return createUser(name)
-}
-```
-
-```ts
-// good — import auto-fixable to the `@/` alias, function documented
-import { createUser } from '@/services/user'
-
-/**
- * Registers a new user by name.
- * @param name The name of the user to create.
- * @returns The created user's id.
- */
-function register(name: string): string {
-  return createUser(name)
-}
-```
-
-### Control flow & nesting
-
-*Demonstrates: `sonarjs/no-nested-conditional`, `unicorn/no-nested-ternary`, `unicorn/no-lonely-if`, `sonarjs/elseif-without-else`, `padding-line-between-statements`.*
-
-Nested conditionals and statement padding:
-
-```ts
-// bad
-// - sonarjs/no-nested-conditional + unicorn/no-nested-ternary: chained ternary
-// - padding-line-between-statements: no blank line before `return`
-function tier(score: number): string {
-  const label = score > 90 ? 'gold' : score > 50 ? 'silver' : 'bronze'
-  return label
-}
-```
-
-```ts
-// good
-/**
- * Maps a score to a medal tier.
- * @param score The score to map.
- * @returns The medal tier.
- */
-function tier(score: number): string {
-  if (score > 90) {
-    return 'gold'
-  }
-
-  if (score > 50) {
-    return 'silver'
-  }
-
-  return 'bronze'
-}
-```
-
-Else-branch shape:
-
-```ts
-// bad
-// - unicorn/no-lonely-if: a lone `if` is the only statement inside another `if` block
-// - sonarjs/elseif-without-else: the `if`/`else if` chain has no closing `else`
-function route(kind: string): string {
-  if (kind !== '') {
-    if (kind === 'a') {
-      return 'alpha'
-    }
-  }
-
-  if (kind === 'b') {
-    return 'beta'
-  }
-  else if (kind === 'c') {
-    return 'charlie'
-  }
-
-  return 'other'
-}
-```
-
-```ts
-// good
-/**
- * Routes a kind to its destination.
- * @param kind The routing key.
- * @returns The destination name.
- */
-function route(kind: string): string {
-  if (kind === 'a') {
-    return 'alpha'
-  }
-  else if (kind === 'b') {
-    return 'beta'
-  }
-  else if (kind === 'c') {
-    return 'charlie'
-  }
-  else {
-    return 'other'
-  }
-}
-```
-
-### JSDoc
-
-*Demonstrates: `jsdoc/require-jsdoc`, `jsdoc/require-param`, `jsdoc/require-returns`, `jsdoc/check-param-names`.*
-
-```ts
-// bad
-// jsdoc/require-jsdoc: no JSDoc block
-function add(first: number, second: number): number {
-  return first + second
-}
-
-/**
- * Multiplies two numbers.
- * @param first The first factor.
- */
-function multiply(first: number, second: number): number {
-  // jsdoc/require-param: `second` is undocumented
-  // jsdoc/require-returns: no `@returns`
-  return first * second
-}
-
-/**
- * Subtracts two numbers.
- * @param a The minuend.
- * @param b The subtrahend.
- * @returns The difference.
- */
-function subtract(minuend: number, subtrahend: number): number {
-  // jsdoc/check-param-names: `a`/`b` do not match `minuend`/`subtrahend`
-  return minuend - subtrahend
-}
-```
-
-```ts
-// good
-/**
- * Adds two numbers.
- * @param first The first addend.
- * @param second The second addend.
- * @returns The sum.
- */
-function add(first: number, second: number): number {
-  return first + second
-}
-```
-
-### Types
-
-*Demonstrates: `ts/consistent-type-definitions`, `no-never-return/no-never-return-type`.*
-
-```ts
-// bad
-// ts/consistent-type-definitions: object shape declared with `type`, must be `interface`
-type User = {
-  id: string
-  name: string
-}
-
-// no-never-return/no-never-return-type: return type is `never` (throw-only wrapper)
-function fail(message: string): never {
-  throw new Error(message)
-}
-```
-
-```ts
-// good
-interface User {
-  id: string
-  name: string
-}
-
-/**
- * Returns the user's name, throwing at the call site when it is missing.
- * @param user The user to read.
- * @returns The user's name.
- */
-function requireName(user: User): string {
-  if (!user.name) {
-    throw new Error('name is required')
-  }
-
-  return user.name
-}
-```
 
 ## Customization
 
