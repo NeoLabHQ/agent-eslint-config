@@ -7,13 +7,27 @@
  *
  * Uses @typescript-eslint type-aware linting to inspect the TypeScript
  * type checker's resolved return type for each function.
+ *
+ * Typed ESM port of the original `eslint.plugin.no-never-return-type.cjs`;
+ * behavior is unchanged, only the docs URL is repointed to this package.
  */
 
-const { ESLintUtils } = require('@typescript-eslint/utils')
-const ts = require('typescript')
+import type { TSESTree } from '@typescript-eslint/utils'
+import { ESLintUtils } from '@typescript-eslint/utils'
+import * as ts from 'typescript'
+
+/**
+ * Function-like nodes whose resolved return type we inspect. `MethodDefinition`
+ * itself is never type-checked directly — its inner `value` (one of these) is.
+ */
+type CheckableFunction
+  = | TSESTree.FunctionDeclaration
+    | TSESTree.FunctionExpression
+    | TSESTree.ArrowFunctionExpression
+    | TSESTree.TSEmptyBodyFunctionExpression
 
 const createRule = ESLintUtils.RuleCreator(
-  (name) => `https://github.com/NeoLabHQ/decision-engine/blob/master/docs/eslint-rules/${name}`,
+  name => `https://github.com/NeoLabHQ/agent-eslint-config/blob/main/docs/eslint-rules/${name}`,
 )
 
 const noNeverReturnType = createRule({
@@ -37,9 +51,9 @@ const noNeverReturnType = createRule({
      * return type in the TypeScript type checker.
      *
      * @param functionNode - ESTree function-like node (declaration, expression, or arrow)
-     * @returns {boolean} whether the function's return type is `never`
+     * @returns whether the function's return type is `never`
      */
-    function hasNeverReturnType(functionNode) {
+    function hasNeverReturnType(functionNode: CheckableFunction): boolean {
       const tsNode = services.esTreeNodeToTSNodeMap.get(functionNode)
       const signature = checker.getSignatureFromDeclaration(tsNode)
 
@@ -59,14 +73,12 @@ const noNeverReturnType = createRule({
      * and should not be flagged.
      *
      * @param node - ESTree function-like node to inspect
-     * @returns {boolean} whether the function is a callback
+     * @returns whether the function is a callback
      */
-    function isCallbackFunction(node) {
+    function isCallbackFunction(
+      node: TSESTree.ArrowFunctionExpression | TSESTree.FunctionExpression,
+    ): boolean {
       const { parent } = node
-
-      if (!parent) {
-        return false
-      }
 
       // Object property value: { handle: () => { throw ... } }
       if (parent.type === 'Property' && parent.value === node) {
@@ -82,26 +94,31 @@ const noNeverReturnType = createRule({
     }
 
     /**
-     * Checks a function-like node and reports if it has `never` return type.
+     * Reports `reportNode` when `functionNode` resolves to a `never` return type.
      *
-     * @param node - the node to report on (may differ from the function node for MethodDefinition)
-     * @param functionNode - the function-like node to type-check (defaults to node)
+     * `reportNode` and `functionNode` differ only for class methods, where the
+     * inner function is type-checked but the `MethodDefinition` is reported on.
+     *
+     * @param reportNode - node the violation is reported against
+     * @param functionNode - function-like node whose return type is inspected
      */
-    function checkAndReport(node, functionNode) {
-      if (hasNeverReturnType(functionNode ?? node)) {
-        context.report({ node, messageId: 'noNeverReturn' })
+    function checkAndReport(reportNode: TSESTree.Node, functionNode: CheckableFunction): void {
+      if (hasNeverReturnType(functionNode)) {
+        context.report({ node: reportNode, messageId: 'noNeverReturn' })
       }
     }
 
     return {
-      FunctionDeclaration: checkAndReport,
+      FunctionDeclaration(node) {
+        checkAndReport(node, node)
+      },
 
       ArrowFunctionExpression(node) {
         if (isCallbackFunction(node)) {
           return
         }
 
-        checkAndReport(node)
+        checkAndReport(node, node)
       },
 
       // Standalone function expressions (not class methods — those are handled by MethodDefinition)
@@ -114,20 +131,18 @@ const noNeverReturnType = createRule({
           return
         }
 
-        checkAndReport(node)
+        checkAndReport(node, node)
       },
 
       // Class methods — type-check the inner FunctionExpression, report on the MethodDefinition
       MethodDefinition(node) {
-        if (node.value) {
-          checkAndReport(node, node.value)
-        }
+        checkAndReport(node, node.value)
       },
     }
   },
 })
 
-module.exports = {
+export default {
   meta: {
     name: 'eslint-plugin-no-never-return-type',
     version: '1.0.0',

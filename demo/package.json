@@ -1,0 +1,16 @@
+{
+  "name": "agent-eslint-config-demo",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Local end-to-end consumer of agent-eslint-config, wired via a file: dependency.",
+  "scripts": {
+    "lint": "eslint --format json fixtures",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "agent-eslint-config": "file:..",
+    "eslint": "^10.0.0",
+    "typescript": ">=4.8.4 <6.1.0"
+  }
+}
