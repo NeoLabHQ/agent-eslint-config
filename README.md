@@ -81,367 +81,81 @@ Add scripts to `package.json`:
 }
 ```
 
-## Customization
+## Recommendations
 
-Normally you only need to import the preset:
+### Usage with agents
 
-```js
-// eslint.config.js
-import config from 'agent-eslint-config'
+We advice you to use this config together with skills like [`/do-and-judge`](https://neolab.gitbook.io/cek/plugins/sadd/do-and-judge) that forces agents to write code, verify it using linter and then fix it until gate is passed.
 
-export default config()
-```
+### TypeScript configuration
 
-### Configuring & overriding rules
+To make the alias rule effective and give TypeScript maximum strictness, mirror the alias in your `tsconfig.json` and enable strict compiler options:
 
-You can also configure each integration individually. The config supports the default [`antfu` options](https://github.com/antfu/eslint-config#customization), plus the one bespoke `alias` option documented below.
-
-```js
-// eslint.config.js
-import config from 'agent-eslint-config'
-
-export default config({
-  // Disable the alias rule
-  alias: false,
-
-  // Type of the project. 'lib' for libraries, the default is 'app'
-  type: 'lib',
-
-  // `.eslintignore` is no longer supported in Flat config, use `ignores` instead
-  // The `ignores` option in the option (first argument) is specifically treated to always be global ignores
-  // And will **extend** the config's default ignores, not override them
-  // You can also pass a function to modify the default ignores
-  ignores: [
-    '**/fixtures',
-    // ...globs
-  ],
-
-  // Parse the `.gitignore` file to get the ignores, on by default
-  gitignore: true,
-
-  // Enable stylistic formatting rules
-  // stylistic: true,
-
-  // Or customize the stylistic rules
-  stylistic: {
-    indent: 2, // 4, or 'tab'
-    quotes: 'single', // or 'double'
-    braceStyle: 'stroustrup', // '1tbs', or 'allman'
-  },
-
-  // TypeScript and Vue are autodetected, you can also explicitly enable them:
-  typescript: true,
-  vue: true,
-
-  // Disable jsonc and yaml support
-  jsonc: false,
-  yaml: false,
-})
-```
-
-
-The `config` factory function also accepts any number of arbitrary custom config overrides:
-
-```js
-// eslint.config.js
-import config from 'agent-eslint-config'
-
-export default config(
-  {
-    // Configures for agent-eslint-config
-  },
-
-  // From the second arguments they are ESLint Flat Configs
-  // you can have multiple configs
-  {
-    files: ['**/*.ts'],
-    rules: {},
-  },
-  {
-    rules: {},
-  },
-)
-```
-
-### Rules Overrides
-
-Certain rules are only enabled in specific files. For example, `ts/*` rules are only enabled in `.ts` files, and `vue/*` rules are only enabled in `.vue` files. If you want to override those rules, you need to specify the file extension:
-
-```js
-// eslint.config.js
-import antfu from '@antfu/eslint-config'
-
-export default antfu(
-  {
-    vue: true,
-    typescript: true
-  },
-  {
-    // Remember to specify the file glob here, otherwise it might cause the vue plugin to handle non-vue files
-    files: ['**/*.vue'],
-    rules: {
-      'vue/operator-linebreak': ['error', 'before'],
+```json
+{
+  "compilerOptions": {
+    "baseUrl": "./",
+    "paths": {
+      "@/*": ["./src/*"]
     },
-  },
-  {
-    // Without `files`, they are general rules for all files (Markdown excluded — see note below)
-    rules: {
-      'style/semi': ['error', 'never'],
-    },
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitReturns": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "noPropertyAccessFromIndexSignature": false,
+    "noImplicitOverride": true,
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    "esModuleInterop": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+    "skipLibCheck": true,
+    "allowSyntheticDefaultImports": true,
+    "forceConsistentCasingInFileNames": true
   }
-)
+}
 ```
 
-### Config Composer
+### Code duplication and unused code checks
 
-`config()` returns a [composer object](https://github.com/antfu/eslint-flat-config-utils#composer) whose methods you can chain to compose the config even more flexibly:
+ESLint has a few limitations due to its architecture, which processes each file separately and does not allow cross-file rules. So, to add code-duplication checks you can use `jscpd`, and for unused-code checks you can add `knip`.
 
-```js
-// eslint.config.js
-import config from 'agent-eslint-config'
-
-export default config()
-  .prepend(
-    // some configs before the main config
-  )
-  // overrides any named configs
-  .override(
-    'antfu/stylistic/rules',
-    {
-      rules: {
-        'style/generator-star-spacing': ['error', { after: true, before: false }],
-      }
-    }
-  )
-  // rename plugin prefixes
-  .renamePlugins({
-    'old-prefix': 'new-prefix',
-    // ...
-  })
-// ...
+```bash
+npm install -D jscpd knip
 ```
 
-### The `alias` option
+Create a `knip.json` file:
 
-The `alias` option configures the custom `prefer-alias` rule, which rewrites relative imports that reach into your source directory (e.g. `../services/user`) into an aliased form (e.g. `@/services/user`).
-
-| Value | Effect |
-| --- | --- |
-| _omitted_ (default) | `{ prefix: '@', sourceDir: 'src' }` |
-| `{ prefix?, sourceDir? }` | Customize either field; any omitted field falls back to the default above |
-| `false` | Disable the `prefer-alias` rule entirely |
-
-```js
-import config from 'agent-eslint-config'
-
-// Default: '@' maps to 'src'
-export default config()
-
-// Custom prefix/sourceDir
-export default config({ alias: { prefix: '~', sourceDir: 'app' } })
-
-// Disable the alias rule
-export default config({ alias: false })
+```json
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "entry": ["src/main.{js,ts}"],
+  "project": ["src/**/*.{js,ts}"],
+  "tags": ["-lintignore"],
+  "rules": {
+    "devDependencies": "off",
+    "exports": "error",
+    "types": "off"
+  }
+}
 ```
 
-## Included Rules
+Then include them in your `package.json`:
 
-Layered on top of the full `@antfu/eslint-config` base, this package explicitly configures **82 rules** across nine groups (plus the layered `@typescript-eslint` `strictTypeChecked` preset). Every rule listed below is `error`-level and overridable via the customization mechanisms above. These rules are emitted *before* any user config, so your own `{ files, rules }` overrides always win last.
-
-> **Prefix note.** Every `@typescript-eslint/*` rule is emitted under the `ts/` prefix, because `antfu` registers the `typescript-eslint` plugin under the `ts` namespace. Use `ts/`, not `@typescript-eslint/`, in your overrides.
-
-### Complexity
-
-Aggressive size and complexity thresholds from ESLint core plus SonarJS.
-
-| Rule | Description |
-| --- | --- |
-| `complexity` | Cyclomatic complexity ≤ 10 per function (`[error, 10]`). |
-| `max-depth` | Block nesting depth ≤ 2 (`[error, 2]`). |
-| `max-lines-per-function` | ≤ 40 code lines per function (skips blanks/comments). |
-| `max-statements` | ≤ 10 statements per function (`[error, 10]`). |
-| `max-lines` | ≤ 150 code lines per file (skips blanks/comments). |
-| `max-nested-callbacks` | Callback nesting depth ≤ 3 (`[error, 3]`). |
-| `max-params` | ≤ 3 function parameters (`[error, 3]`). |
-| `sonarjs/cognitive-complexity` | Cognitive complexity ≤ 4 per function (`[error, 4]`). |
-
-### SonarJS
-
-35 rules from `eslint-plugin-sonarjs`, grouped by concern. (The three SonarJS naming rules live in the Naming group and `sonarjs/cognitive-complexity` lives in the Complexity group.)
-
-**Control flow**
-
-| Rule | Description |
-| --- | --- |
-| `sonarjs/nested-control-flow` | Limits nesting depth of control-flow statements to 2. |
-| `sonarjs/too-many-break-or-continue-in-loop` | Forbids multiple `break`/`continue` in a loop. |
-| `sonarjs/elseif-without-else` | Requires a closing `else` after an `else if` chain. |
-| `sonarjs/no-nested-conditional` | Forbids nested ternary/conditional expressions. |
-| `sonarjs/no-same-line-conditional` | Forbids conditionals sharing a line. |
-| `sonarjs/conditional-indentation` | Enforces consistent indentation of conditionals. |
-
-**Dead code & redundancy**
-
-| Rule | Description |
-| --- | --- |
-| `sonarjs/no-all-duplicated-branches` | Forbids conditionals whose branches are all identical. |
-| `sonarjs/no-duplicated-branches` | Forbids duplicated branches in conditionals/switch. |
-| `sonarjs/no-dead-store` | Forbids assignments whose value is never read. |
-| `sonarjs/no-redundant-assignments` | Forbids assignments that duplicate the existing value. |
-| `sonarjs/no-identical-functions` | Forbids duplicate function bodies (≥ 3 lines). |
-| `sonarjs/no-useless-catch` | Forbids `catch` blocks that only rethrow. |
-| `sonarjs/no-useless-increment` | Forbids increments whose result is unused. |
-| `sonarjs/useless-string-operation` | Forbids no-op string operations. |
-| `sonarjs/prefer-immediate-return` | Prefers returning an expression over assign-then-return. |
-
-**Nesting & assignments**
-
-| Rule | Description |
-| --- | --- |
-| `sonarjs/no-nested-assignment` | Forbids assignments nested inside expressions. |
-| `sonarjs/no-nested-functions` | Forbids deeply nested function declarations. |
-| `sonarjs/no-nested-incdec` | Forbids nested increment/decrement. |
-| `sonarjs/no-parameter-reassignment` | Forbids reassigning function parameters. |
-| `sonarjs/destructuring-assignment-syntax` | Enforces destructuring assignment syntax. |
-
-**Loops**
-
-| Rule | Description |
-| --- | --- |
-| `sonarjs/misplaced-loop-counter` | Forbids updating the wrong counter in a loop. |
-| `sonarjs/updated-loop-counter` | Forbids mutating a loop counter in the body. |
-
-**Functions & declarations**
-
-| Rule | Description |
-| --- | --- |
-| `sonarjs/no-function-declaration-in-block` | Forbids function declarations inside blocks. |
-| `sonarjs/no-globals-shadowing` | Forbids shadowing global identifiers. |
-| `sonarjs/no-fallthrough` | Forbids switch-case fallthrough. |
-| `sonarjs/no-reference-error` | Flags likely `ReferenceError`s (use-before-define). |
-| `sonarjs/no-unthrown-error` | Flags `Error` objects created but never thrown. |
-| `sonarjs/prefer-type-guard` | Prefers type-guard functions over inline type checks. |
-
-**Promises & async**
-
-| Rule | Description |
-| --- | --- |
-| `sonarjs/no-try-promise` | Forbids `try/catch` around a Promise without `await`. |
-
-**Security**
-
-| Rule | Description |
-| --- | --- |
-| `sonarjs/no-hardcoded-ip` | Forbids hardcoded IP addresses. |
-| `sonarjs/no-hardcoded-passwords` | Forbids hardcoded passwords. |
-| `sonarjs/no-hardcoded-secrets` | Forbids hardcoded secrets/tokens. |
-| `sonarjs/os-command` | Flags risky OS command execution. |
-
-**Testing**
-
-| Rule | Description |
-| --- | --- |
-| `sonarjs/no-skipped-tests` | Forbids skipped tests (`.skip`). |
-| `sonarjs/stable-tests` | Forbids unstable/non-deterministic test patterns. |
-
-### Unicorn
-
-10 rules overridden on `eslint-plugin-unicorn` (registered by `antfu`).
-
-| Rule | Description |
-| --- | --- |
-| `unicorn/catch-error-name` | Requires the caught error variable to be named `error` (`{ name: 'error' }`). |
-| `unicorn/prefer-optional-catch-binding` | Prefers omitting the catch binding when it is unused. |
-| `unicorn/consistent-destructuring` | Requires consistent destructuring of an object. |
-| `unicorn/consistent-function-scoping` | Moves functions to the outermost scope that works. |
-| `unicorn/custom-error-definition` | Enforces correct custom `Error` subclass definitions. |
-| `unicorn/no-lonely-if` | Forbids an `if` as the only statement inside an `else`. |
-| `unicorn/no-nested-ternary` | Forbids nested ternary expressions. |
-| `unicorn/no-static-only-class` | Forbids classes containing only static members. |
-| `unicorn/prefer-class-fields` | Prefers class fields over constructor assignment. |
-| `unicorn/throw-new-error` | **Turned OFF** (conflicts with catch decorators). |
-
-### Type-aware
-
-Enables `@typescript-eslint`'s `strictTypeChecked` preset (emitted under the `ts/` prefix), which requires a resolvable `tsconfig.json`. On top of the preset, the package explicitly configures the following:
-
-| Rule | Description |
-| --- | --- |
-| `no-never-return/no-never-return-type` | Bans functions whose resolved return type is `never` (throw-only wrappers); throw at the call site instead. Type-aware; ignores callback functions. |
-| `ts/use-unknown-in-catch-callback-variable` | Forces `unknown` typing for the parameter of `.catch()` / promise-rejection callbacks. |
-| `ts/only-throw-error` | Disallows throwing values that are not `Error` objects. |
-
-**The `strictTypeChecked` preset.** This package enables the entire `@typescript-eslint` `strictTypeChecked` preset (~72 enabled type-aware rules, all emitted as `ts/*`). The preset also turns **off ~28 core ESLint rules** it supersedes with type-aware equivalents (e.g. core `no-throw-literal`, `no-unused-vars`, `require-await`, `no-implied-eval` — use the `ts/*` versions instead), in addition to the 5 `antfu`-enabled rules listed under [Rules deliberately turned off](#rules-deliberately-turned-off). The preset is not enumerated in full here because its exact membership is version-dependent, but notable rules it brings in include:
-
-- `ts/no-explicit-any`, `ts/no-unsafe-argument`, `ts/no-unsafe-assignment`, `ts/no-unsafe-call`, `ts/no-unsafe-member-access`, `ts/no-unsafe-return`
-- `ts/no-floating-promises`, `ts/no-misused-promises`, `ts/await-thenable`, `ts/require-await`
-- `ts/no-unnecessary-condition`, `ts/no-unnecessary-type-assertion`, `ts/no-non-null-assertion`
-- `ts/restrict-template-expressions`, `ts/restrict-plus-operands`, `ts/no-base-to-string`
-- `ts/unbound-method`, `ts/no-confusing-void-expression`, `ts/ban-ts-comment`
-
-The following notable type-checked rules are configured or emphasized by this package (the last two are set in the Stylistic group but still require type information): `ts/use-unknown-in-catch-callback-variable`, `ts/only-throw-error`, `ts/consistent-type-definitions`, `ts/class-methods-use-this`.
-
-### Naming
-
-5 rules from `eslint-plugin-sonarjs` and `eslint-plugin-validate-filename`. All ban the vague terms `util`, `common`, `helper`, and `function` (in any case).
-
-| Rule | Description |
-| --- | --- |
-| `validate-filename/naming-rules` | Forbids `util`/`common`/`helper`/`function` in `*.ts` file names (glob-scoped to `**/*.ts`). |
-| `sonarjs/class-name` | Class names must be PascalCase and must not contain the vague terms. |
-| `sonarjs/function-name` | Function names must be camelCase/PascalCase and must not contain the vague terms. |
-| `sonarjs/variable-name` | Variable names must be camelCase/PascalCase/UPPER_SNAKE and must not contain the vague terms. |
-| `test/prefer-lowercase-title` | **Turned OFF** (disables `antfu`'s lowercase test-title default). |
-
-### Stylistic
-
-12 rules from ESLint core, `@typescript-eslint` (emitted as `ts/*`), and `perfectionist`.
-
-| Rule | Description |
-| --- | --- |
-| `ts/consistent-type-definitions` | Requires `interface` over `type` for object types (`[error, 'interface']`). |
-| `ts/class-methods-use-this` | Requires class methods to use `this` (with override/interface exceptions). |
-| `no-warning-comments` | Forbids `jscpd:ignore-*` marker comments. |
-| `prefer-const` | Requires `const` where a binding is never reassigned. |
-| `init-declarations` | Requires variables to be initialized at declaration (`[error, 'always']`). |
-| `id-length` | Identifier length must be 3–35 characters, with exceptions (`i`, `j`, `k`, `x`, `y`, `z`, `_`, `id`, `on`, `in`, `of`). |
-| `padding-line-between-statements` | Requires blank lines after `const`/`let` declarations, before `return`, and around control-flow blocks. |
-| `preserve-caught-error` | Requires preserving the original caught error (`cause`) when rethrowing. |
-| `no-restricted-syntax` | Bans static methods and static properties (use instance members). |
-| `ts/consistent-type-imports` | **Turned OFF** (NestJS DI needs value imports). |
-| `perfectionist/sort-named-imports` | **Turned OFF** (do not sort named imports). |
-| `class-methods-use-this` | **Turned OFF** (replaced by the `ts/` variant above). |
-
-### Promise
-
-1 rule from `eslint-plugin-promise`.
-
-| Rule | Description |
-| --- | --- |
-| `promise/prefer-await-to-then` | Prefers `await` over `.then()`/`.catch()` chaining. |
-
-### JSDoc
-
-6 rules overridden on `eslint-plugin-jsdoc` (registered by `antfu`).
-
-| Rule | Description |
-| --- | --- |
-| `jsdoc/require-jsdoc` | Requires JSDoc on function/method/class declarations, constructors, getters, and setters (not on arrows or function expressions). |
-| `jsdoc/require-description` | Requires a description in JSDoc blocks. |
-| `jsdoc/require-param` | Requires a `@param` for each parameter. |
-| `jsdoc/require-returns` | Requires a `@returns` for functions that return a value. |
-| `jsdoc/check-param-names` | Requires `@param` names to match the signature. |
-| `jsdoc/no-blank-blocks` | Forbids empty JSDoc blocks. |
-
-### Custom
-
-Rules implemented by this package's own plugins.
-
-| Rule | Fixable | Description |
-| --- | --- | --- |
-| `step-down-rule/step-down` | No | Enforces top-down call structure — callers appear before callees. Decorator factories defined after use are allowed. |
-| `alias/prefer-alias` | Yes (`code`) | Rewrites relative imports that reach into the source dir (`../foo`) to the alias form (`@/foo`). Option-gated: omitted entirely when `config({ alias: false })`. |
-| `no-never-return/no-never-return-type` | No | Bans functions whose resolved return type is `never`. Type-aware; also listed under [Type-aware](#type-aware) above. |
+```json
+{
+  "scripts": {
+    "lint": "npm run typecheck && npm run lint:jscpd && npm run lint:knip && npm run lint:eslint",
+    "lint:fix": "npm run typecheck && npm run lint:jscpd && npm run lint:eslint -- --fix && npm run lint:knip -- --fix",
+    "typecheck": "tsc --noEmit",
+    "lint:eslint": "eslint \"{src,apps,libs,test}/**/*.ts\"",
+    "lint:jscpd": "jscpd --pattern 'src/**/*.{ts,tsx}' -i '**/*.spec.*' -t 0.1",
+    "lint:knip": "knip"
+  }
+}
+```
 
 ## Examples
 
@@ -830,81 +544,367 @@ function requireName(user: User): string {
 }
 ```
 
-## Recommendations
+## Customization
 
-### Usage with agents
+Normally you only need to import the preset:
 
-We advice you to use this config together with skills like [`/do-and-judge`](https://neolab.gitbook.io/cek/plugins/sadd/do-and-judge) that forces agents to write code, verify it using linter and then fix it until gate is passed.
+```js
+// eslint.config.js
+import config from 'agent-eslint-config'
 
-### TypeScript configuration
+export default config()
+```
 
-To make the alias rule effective and give TypeScript maximum strictness, mirror the alias in your `tsconfig.json` and enable strict compiler options:
+### Configuring & overriding rules
 
-```json
-{
-  "compilerOptions": {
-    "baseUrl": "./",
-    "paths": {
-      "@/*": ["./src/*"]
+You can also configure each integration individually. The config supports the default [`antfu` options](https://github.com/antfu/eslint-config#customization), plus the one bespoke `alias` option documented below.
+
+```js
+// eslint.config.js
+import config from 'agent-eslint-config'
+
+export default config({
+  // Disable the alias rule
+  alias: false,
+
+  // Type of the project. 'lib' for libraries, the default is 'app'
+  type: 'lib',
+
+  // `.eslintignore` is no longer supported in Flat config, use `ignores` instead
+  // The `ignores` option in the option (first argument) is specifically treated to always be global ignores
+  // And will **extend** the config's default ignores, not override them
+  // You can also pass a function to modify the default ignores
+  ignores: [
+    '**/fixtures',
+    // ...globs
+  ],
+
+  // Parse the `.gitignore` file to get the ignores, on by default
+  gitignore: true,
+
+  // Enable stylistic formatting rules
+  // stylistic: true,
+
+  // Or customize the stylistic rules
+  stylistic: {
+    indent: 2, // 4, or 'tab'
+    quotes: 'single', // or 'double'
+    braceStyle: 'stroustrup', // '1tbs', or 'allman'
+  },
+
+  // TypeScript and Vue are autodetected, you can also explicitly enable them:
+  typescript: true,
+  vue: true,
+
+  // Disable jsonc and yaml support
+  jsonc: false,
+  yaml: false,
+})
+```
+
+
+The `config` factory function also accepts any number of arbitrary custom config overrides:
+
+```js
+// eslint.config.js
+import config from 'agent-eslint-config'
+
+export default config(
+  {
+    // Configures for agent-eslint-config
+  },
+
+  // From the second arguments they are ESLint Flat Configs
+  // you can have multiple configs
+  {
+    files: ['**/*.ts'],
+    rules: {},
+  },
+  {
+    rules: {},
+  },
+)
+```
+
+### Rules Overrides
+
+Certain rules are only enabled in specific files. For example, `ts/*` rules are only enabled in `.ts` files, and `vue/*` rules are only enabled in `.vue` files. If you want to override those rules, you need to specify the file extension:
+
+```js
+// eslint.config.js
+import antfu from '@antfu/eslint-config'
+
+export default antfu(
+  {
+    vue: true,
+    typescript: true
+  },
+  {
+    // Remember to specify the file glob here, otherwise it might cause the vue plugin to handle non-vue files
+    files: ['**/*.vue'],
+    rules: {
+      'vue/operator-linebreak': ['error', 'before'],
     },
-    "strict": true,
-    "noUncheckedIndexedAccess": true,
-    "noImplicitReturns": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    "noFallthroughCasesInSwitch": true,
-    "noPropertyAccessFromIndexSignature": false,
-    "noImplicitOverride": true,
-    "declaration": true,
-    "emitDeclarationOnly": true,
-    "esModuleInterop": true,
-    "isolatedModules": true,
-    "verbatimModuleSyntax": true,
-    "skipLibCheck": true,
-    "allowSyntheticDefaultImports": true,
-    "forceConsistentCasingInFileNames": true
+  },
+  {
+    // Without `files`, they are general rules for all files (Markdown excluded — see note below)
+    rules: {
+      'style/semi': ['error', 'never'],
+    },
   }
-}
+)
 ```
 
-### Code duplication and unused code checks
+### Config Composer
 
-ESLint has a few limitations due to its architecture, which processes each file separately and does not allow cross-file rules. So, to add code-duplication checks you can use `jscpd`, and for unused-code checks you can add `knip`.
+`config()` returns a [composer object](https://github.com/antfu/eslint-flat-config-utils#composer) whose methods you can chain to compose the config even more flexibly:
 
-```bash
-npm install -D jscpd knip
+```js
+// eslint.config.js
+import config from 'agent-eslint-config'
+
+export default config()
+  .prepend(
+    // some configs before the main config
+  )
+  // overrides any named configs
+  .override(
+    'antfu/stylistic/rules',
+    {
+      rules: {
+        'style/generator-star-spacing': ['error', { after: true, before: false }],
+      }
+    }
+  )
+  // rename plugin prefixes
+  .renamePlugins({
+    'old-prefix': 'new-prefix',
+    // ...
+  })
+// ...
 ```
 
-Create a `knip.json` file:
+### The `alias` option
 
-```json
-{
-  "$schema": "https://unpkg.com/knip@5/schema.json",
-  "entry": ["src/main.{js,ts}"],
-  "project": ["src/**/*.{js,ts}"],
-  "tags": ["-lintignore"],
-  "rules": {
-    "devDependencies": "off",
-    "exports": "error",
-    "types": "off"
-  }
-}
+The `alias` option configures the custom `prefer-alias` rule, which rewrites relative imports that reach into your source directory (e.g. `../services/user`) into an aliased form (e.g. `@/services/user`).
+
+| Value | Effect |
+| --- | --- |
+| _omitted_ (default) | `{ prefix: '@', sourceDir: 'src' }` |
+| `{ prefix?, sourceDir? }` | Customize either field; any omitted field falls back to the default above |
+| `false` | Disable the `prefer-alias` rule entirely |
+
+```js
+import config from 'agent-eslint-config'
+
+// Default: '@' maps to 'src'
+export default config()
+
+// Custom prefix/sourceDir
+export default config({ alias: { prefix: '~', sourceDir: 'app' } })
+
+// Disable the alias rule
+export default config({ alias: false })
 ```
 
-Then include them in your `package.json`:
+## Included Rules
 
-```json
-{
-  "scripts": {
-    "lint": "npm run typecheck && npm run lint:jscpd && npm run lint:knip && npm run lint:eslint",
-    "lint:fix": "npm run typecheck && npm run lint:jscpd && npm run lint:eslint -- --fix && npm run lint:knip -- --fix",
-    "typecheck": "tsc --noEmit",
-    "lint:eslint": "eslint \"{src,apps,libs,test}/**/*.ts\"",
-    "lint:jscpd": "jscpd --pattern 'src/**/*.{ts,tsx}' -i '**/*.spec.*' -t 0.1",
-    "lint:knip": "knip"
-  }
-}
-```
+Layered on top of the full `@antfu/eslint-config` base, this package explicitly configures **82 rules** across nine groups (plus the layered `@typescript-eslint` `strictTypeChecked` preset). Every rule listed below is `error`-level and overridable via the customization mechanisms above. These rules are emitted *before* any user config, so your own `{ files, rules }` overrides always win last.
+
+> **Prefix note.** Every `@typescript-eslint/*` rule is emitted under the `ts/` prefix, because `antfu` registers the `typescript-eslint` plugin under the `ts` namespace. Use `ts/`, not `@typescript-eslint/`, in your overrides.
+
+### Complexity
+
+Aggressive size and complexity thresholds from ESLint core plus SonarJS.
+
+| Rule | Description |
+| --- | --- |
+| `complexity` | Cyclomatic complexity ≤ 10 per function (`[error, 10]`). |
+| `max-depth` | Block nesting depth ≤ 2 (`[error, 2]`). |
+| `max-lines-per-function` | ≤ 40 code lines per function (skips blanks/comments). |
+| `max-statements` | ≤ 10 statements per function (`[error, 10]`). |
+| `max-lines` | ≤ 150 code lines per file (skips blanks/comments). |
+| `max-nested-callbacks` | Callback nesting depth ≤ 3 (`[error, 3]`). |
+| `max-params` | ≤ 3 function parameters (`[error, 3]`). |
+| `sonarjs/cognitive-complexity` | Cognitive complexity ≤ 4 per function (`[error, 4]`). |
+
+### SonarJS
+
+35 rules from `eslint-plugin-sonarjs`, grouped by concern. (The three SonarJS naming rules live in the Naming group and `sonarjs/cognitive-complexity` lives in the Complexity group.)
+
+**Control flow**
+
+| Rule | Description |
+| --- | --- |
+| `sonarjs/nested-control-flow` | Limits nesting depth of control-flow statements to 2. |
+| `sonarjs/too-many-break-or-continue-in-loop` | Forbids multiple `break`/`continue` in a loop. |
+| `sonarjs/elseif-without-else` | Requires a closing `else` after an `else if` chain. |
+| `sonarjs/no-nested-conditional` | Forbids nested ternary/conditional expressions. |
+| `sonarjs/no-same-line-conditional` | Forbids conditionals sharing a line. |
+| `sonarjs/conditional-indentation` | Enforces consistent indentation of conditionals. |
+
+**Dead code & redundancy**
+
+| Rule | Description |
+| --- | --- |
+| `sonarjs/no-all-duplicated-branches` | Forbids conditionals whose branches are all identical. |
+| `sonarjs/no-duplicated-branches` | Forbids duplicated branches in conditionals/switch. |
+| `sonarjs/no-dead-store` | Forbids assignments whose value is never read. |
+| `sonarjs/no-redundant-assignments` | Forbids assignments that duplicate the existing value. |
+| `sonarjs/no-identical-functions` | Forbids duplicate function bodies (≥ 3 lines). |
+| `sonarjs/no-useless-catch` | Forbids `catch` blocks that only rethrow. |
+| `sonarjs/no-useless-increment` | Forbids increments whose result is unused. |
+| `sonarjs/useless-string-operation` | Forbids no-op string operations. |
+| `sonarjs/prefer-immediate-return` | Prefers returning an expression over assign-then-return. |
+
+**Nesting & assignments**
+
+| Rule | Description |
+| --- | --- |
+| `sonarjs/no-nested-assignment` | Forbids assignments nested inside expressions. |
+| `sonarjs/no-nested-functions` | Forbids deeply nested function declarations. |
+| `sonarjs/no-nested-incdec` | Forbids nested increment/decrement. |
+| `sonarjs/no-parameter-reassignment` | Forbids reassigning function parameters. |
+| `sonarjs/destructuring-assignment-syntax` | Enforces destructuring assignment syntax. |
+
+**Loops**
+
+| Rule | Description |
+| --- | --- |
+| `sonarjs/misplaced-loop-counter` | Forbids updating the wrong counter in a loop. |
+| `sonarjs/updated-loop-counter` | Forbids mutating a loop counter in the body. |
+
+**Functions & declarations**
+
+| Rule | Description |
+| --- | --- |
+| `sonarjs/no-function-declaration-in-block` | Forbids function declarations inside blocks. |
+| `sonarjs/no-globals-shadowing` | Forbids shadowing global identifiers. |
+| `sonarjs/no-fallthrough` | Forbids switch-case fallthrough. |
+| `sonarjs/no-reference-error` | Flags likely `ReferenceError`s (use-before-define). |
+| `sonarjs/no-unthrown-error` | Flags `Error` objects created but never thrown. |
+| `sonarjs/prefer-type-guard` | Prefers type-guard functions over inline type checks. |
+
+**Promises & async**
+
+| Rule | Description |
+| --- | --- |
+| `sonarjs/no-try-promise` | Forbids `try/catch` around a Promise without `await`. |
+
+**Security**
+
+| Rule | Description |
+| --- | --- |
+| `sonarjs/no-hardcoded-ip` | Forbids hardcoded IP addresses. |
+| `sonarjs/no-hardcoded-passwords` | Forbids hardcoded passwords. |
+| `sonarjs/no-hardcoded-secrets` | Forbids hardcoded secrets/tokens. |
+| `sonarjs/os-command` | Flags risky OS command execution. |
+
+**Testing**
+
+| Rule | Description |
+| --- | --- |
+| `sonarjs/no-skipped-tests` | Forbids skipped tests (`.skip`). |
+| `sonarjs/stable-tests` | Forbids unstable/non-deterministic test patterns. |
+
+### Unicorn
+
+10 rules overridden on `eslint-plugin-unicorn` (registered by `antfu`).
+
+| Rule | Description |
+| --- | --- |
+| `unicorn/catch-error-name` | Requires the caught error variable to be named `error` (`{ name: 'error' }`). |
+| `unicorn/prefer-optional-catch-binding` | Prefers omitting the catch binding when it is unused. |
+| `unicorn/consistent-destructuring` | Requires consistent destructuring of an object. |
+| `unicorn/consistent-function-scoping` | Moves functions to the outermost scope that works. |
+| `unicorn/custom-error-definition` | Enforces correct custom `Error` subclass definitions. |
+| `unicorn/no-lonely-if` | Forbids an `if` as the only statement inside an `else`. |
+| `unicorn/no-nested-ternary` | Forbids nested ternary expressions. |
+| `unicorn/no-static-only-class` | Forbids classes containing only static members. |
+| `unicorn/prefer-class-fields` | Prefers class fields over constructor assignment. |
+| `unicorn/throw-new-error` | **Turned OFF** (conflicts with catch decorators). |
+
+### Type-aware
+
+Enables `@typescript-eslint`'s `strictTypeChecked` preset (emitted under the `ts/` prefix), which requires a resolvable `tsconfig.json`. On top of the preset, the package explicitly configures the following:
+
+| Rule | Description |
+| --- | --- |
+| `no-never-return/no-never-return-type` | Bans functions whose resolved return type is `never` (throw-only wrappers); throw at the call site instead. Type-aware; ignores callback functions. |
+| `ts/use-unknown-in-catch-callback-variable` | Forces `unknown` typing for the parameter of `.catch()` / promise-rejection callbacks. |
+| `ts/only-throw-error` | Disallows throwing values that are not `Error` objects. |
+
+**The `strictTypeChecked` preset.** This package enables the entire `@typescript-eslint` `strictTypeChecked` preset (~72 enabled type-aware rules, all emitted as `ts/*`). The preset also turns **off ~28 core ESLint rules** it supersedes with type-aware equivalents (e.g. core `no-throw-literal`, `no-unused-vars`, `require-await`, `no-implied-eval` — use the `ts/*` versions instead), in addition to the 5 `antfu`-enabled rules listed under [Rules deliberately turned off](#rules-deliberately-turned-off). The preset is not enumerated in full here because its exact membership is version-dependent, but notable rules it brings in include:
+
+- `ts/no-explicit-any`, `ts/no-unsafe-argument`, `ts/no-unsafe-assignment`, `ts/no-unsafe-call`, `ts/no-unsafe-member-access`, `ts/no-unsafe-return`
+- `ts/no-floating-promises`, `ts/no-misused-promises`, `ts/await-thenable`, `ts/require-await`
+- `ts/no-unnecessary-condition`, `ts/no-unnecessary-type-assertion`, `ts/no-non-null-assertion`
+- `ts/restrict-template-expressions`, `ts/restrict-plus-operands`, `ts/no-base-to-string`
+- `ts/unbound-method`, `ts/no-confusing-void-expression`, `ts/ban-ts-comment`
+
+The following notable type-checked rules are configured or emphasized by this package (the last two are set in the Stylistic group but still require type information): `ts/use-unknown-in-catch-callback-variable`, `ts/only-throw-error`, `ts/consistent-type-definitions`, `ts/class-methods-use-this`.
+
+### Naming
+
+5 rules from `eslint-plugin-sonarjs` and `eslint-plugin-validate-filename`. All ban the vague terms `util`, `common`, `helper`, and `function` (in any case).
+
+| Rule | Description |
+| --- | --- |
+| `validate-filename/naming-rules` | Forbids `util`/`common`/`helper`/`function` in `*.ts` file names (glob-scoped to `**/*.ts`). |
+| `sonarjs/class-name` | Class names must be PascalCase and must not contain the vague terms. |
+| `sonarjs/function-name` | Function names must be camelCase/PascalCase and must not contain the vague terms. |
+| `sonarjs/variable-name` | Variable names must be camelCase/PascalCase/UPPER_SNAKE and must not contain the vague terms. |
+| `test/prefer-lowercase-title` | **Turned OFF** (disables `antfu`'s lowercase test-title default). |
+
+### Stylistic
+
+12 rules from ESLint core, `@typescript-eslint` (emitted as `ts/*`), and `perfectionist`.
+
+| Rule | Description |
+| --- | --- |
+| `ts/consistent-type-definitions` | Requires `interface` over `type` for object types (`[error, 'interface']`). |
+| `ts/class-methods-use-this` | Requires class methods to use `this` (with override/interface exceptions). |
+| `no-warning-comments` | Forbids `jscpd:ignore-*` marker comments. |
+| `prefer-const` | Requires `const` where a binding is never reassigned. |
+| `init-declarations` | Requires variables to be initialized at declaration (`[error, 'always']`). |
+| `id-length` | Identifier length must be 3–35 characters, with exceptions (`i`, `j`, `k`, `x`, `y`, `z`, `_`, `id`, `on`, `in`, `of`). |
+| `padding-line-between-statements` | Requires blank lines after `const`/`let` declarations, before `return`, and around control-flow blocks. |
+| `preserve-caught-error` | Requires preserving the original caught error (`cause`) when rethrowing. |
+| `no-restricted-syntax` | Bans static methods and static properties (use instance members). |
+| `ts/consistent-type-imports` | **Turned OFF** (NestJS DI needs value imports). |
+| `perfectionist/sort-named-imports` | **Turned OFF** (do not sort named imports). |
+| `class-methods-use-this` | **Turned OFF** (replaced by the `ts/` variant above). |
+
+### Promise
+
+1 rule from `eslint-plugin-promise`.
+
+| Rule | Description |
+| --- | --- |
+| `promise/prefer-await-to-then` | Prefers `await` over `.then()`/`.catch()` chaining. |
+
+### JSDoc
+
+6 rules overridden on `eslint-plugin-jsdoc` (registered by `antfu`).
+
+| Rule | Description |
+| --- | --- |
+| `jsdoc/require-jsdoc` | Requires JSDoc on function/method/class declarations, constructors, getters, and setters (not on arrows or function expressions). |
+| `jsdoc/require-description` | Requires a description in JSDoc blocks. |
+| `jsdoc/require-param` | Requires a `@param` for each parameter. |
+| `jsdoc/require-returns` | Requires a `@returns` for functions that return a value. |
+| `jsdoc/check-param-names` | Requires `@param` names to match the signature. |
+| `jsdoc/no-blank-blocks` | Forbids empty JSDoc blocks. |
+
+### Custom
+
+Rules implemented by this package's own plugins.
+
+| Rule | Fixable | Description |
+| --- | --- | --- |
+| `step-down-rule/step-down` | No | Enforces top-down call structure — callers appear before callees. Decorator factories defined after use are allowed. |
+| `alias/prefer-alias` | Yes (`code`) | Rewrites relative imports that reach into the source dir (`../foo`) to the alias form (`@/foo`). Option-gated: omitted entirely when `config({ alias: false })`. |
+| `no-never-return/no-never-return-type` | No | Bans functions whose resolved return type is `never`. Type-aware; also listed under [Type-aware](#type-aware) above. |
 
 ## FAQ
 
