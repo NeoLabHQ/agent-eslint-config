@@ -1,15 +1,31 @@
-# agent-eslint-config
+<p align="center">
+  <img src="./docs/assets/eslint-logo-color.svg" width="128px" alt="ESLint logo" />
+</p>
 
-Overly opionated ESLint config preset designed specifically for agents. Forces them to write low-complexity, highly readable code. Supports: Claude, Gemini, Codex and many more.
+<div align="center">
+
+<h1>Agent ESLint Config</h1>
+
+Overly opionated ESLint config, that forces agents to write low-complexity, highly readable code.
+
+[Quick Start](#quick-start) •
+[Customization](#Customization) •
+[Included Rules](#included-rules) •
+[Recommendations](#recommendations) •
+[FAQ](#faq)
+
+</div>
+
+ESLint config preset designed specifically for agents. Provides most strict possible rules to limit code complexity and security risks, while enforcing best practices and coding standards. Supports: Claude, Gemini, Codex, Antigravity, OpenCode and many more.
 
 ## Features
 
+- Zero configuration out of the box
 - Highly-strict eslint config that includes rules to limit:
   - The cognitive and cyclomatic complexity of code. 
   - The size of functions, files, and classes. 
   - Max depth of nested if statements, loops, and functions.
   - Max amount of statements, lines, and parameters in a function.
-- Zero configuration out of the box
 - Rules enforce: 
   - Best practices
   - Coding standards
@@ -29,10 +45,14 @@ Overly opionated ESLint config preset designed specifically for agents. Forces t
 - Single quotes, no semi
 - Using [ESLint Stylistic](https://github.com/eslint-stylistic/eslint-stylistic)
 - Stable diff: Sorted imports, dangling commas
+- Empty lines between statements and blocks
+- Short, single purpose functions and classes
 
-> After multiple tests and iterations we found that even minimal decrease in strictness imidiatly abused by agents. So current version can be hard to write manually, but it able to catch bad code in majority of cases.
+### Manual usage
 
-## Usage
+After multiple tests and iterations we found that even minimal decrease in strictness imidiatly abused by agents. So current version can be hard to write manually, but it able to catch bad code in majority of cases.
+
+## Quick Start
 
 Install ESLint and the config:
 
@@ -71,7 +91,7 @@ import config from 'agent-eslint-config'
 export default config()
 ```
 
-## Configuring & overriding rules
+### Configuring & overriding rules
 
 But you can configure each integration individually. Config support default [`antfu` options](https://github.com/antfu/eslint-config#customization), plus the one bespoke `alias` option documented below.
 
@@ -223,7 +243,7 @@ export default config({ alias: { prefix: '~', sourceDir: 'app' } })
 export default config({ alias: false })
 ```
 
-## What's included
+## Included Rules
 
 Layered on top of the full `@antfu/eslint-config` base, this package adds the following opinionated rule groups. Every rule is `error`-level and overridable via the model above.
 
