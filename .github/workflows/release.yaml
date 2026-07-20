@@ -1,0 +1,58 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - master
+
+permissions:
+  contents: write
+
+jobs:
+  # Based on https://semantic-release.gitbook.io/semantic-release/recipes/ci-configurations/github-actions#node-project-configuration
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    environment: Production
+    permissions:
+      contents: write # to be able to publish a GitHub release
+      issues: write # to be able to comment on released issues
+      pull-requests: write # to be able to comment on released pull requests
+      # Uses trusted publishing for release: https://docs.npmjs.com/trusted-publishers
+      id-token: write # to enable use of OIDC for trusted publishing and npm provenance
+
+    steps:
+
+      - name: Create GitHub App Token
+        uses: actions/create-github-app-token@v3
+        id: app-token
+        with:
+          client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify the integrity of provenance attestations and registry signatures for installed dependencies
+        run: npm audit signatures
+
+      - name: Create new release
+        uses: cycjimmy/semantic-release-action@v6
+        id: semantic   
+        with:
+          semantic_version: 25
+        env:
+          # Created following https://github.com/actions/create-github-app-token and https://semantic-release.org/recipes/ci-configurations/github-actions/#pushing-packagejson-changes-to-your-repository
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
