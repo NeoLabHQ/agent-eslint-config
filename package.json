@@ -24,6 +24,7 @@
     "build": "tsdown",
     "build:watch": "tsdown --watch",
     "dev": "concurrently -c auto --names build,test npm:build:watch npm:test:watch",
+    "verify": "npm run typecheck && npm run test &&npm run test:e2e",
     "lint": "npm run typecheck",
     "test": "vitest --run",
     "test:watch": "vitest",
