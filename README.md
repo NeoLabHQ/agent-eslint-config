@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="./docs/assets/eslint-logo-color.svg" width="128px" alt="ESLint logo" />
+  <img src="./docs/assets/eslint-logo-color.svg" width="256px" alt="ESLint logo" />
 </p>
 
 <div align="center">
