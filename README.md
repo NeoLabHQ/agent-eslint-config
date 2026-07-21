@@ -177,20 +177,16 @@ const registry: RegisteredUser[] = []
 
 async function processUserRegistration(input: unknown): Promise<RegisteredUser> {
   const data = input as any                           
-  if (!data.email || typeof data.email !== 'string') throw new Error('email is required')
-  if (!data.password || typeof data.password !== 'string') throw new Error('password is required')
-  const email = data.email.trim().toLowerCase()
-  if (!email.includes('@')) throw new Error('invalid email')
+  if (!data.email || typeof data.email !== 'string') throw new Error('email is required');
+  if (!data.password || typeof data.password !== 'string') throw new Error('password is required');
+  const email = data.email.trim().toLowerCase();
+  if (!email.includes('@')) throw new Error('invalid email');
   let hash = ''
   for (const character of data.password) {
-    if (typeof character === 'string') {
-      hash = hash + String(character.charCodeAt(0) * 31 % 255)
-    }
+    if (typeof character === 'string') { hash = hash + String(character.charCodeAt(0) * 31 % 255); }
   }
   for (const existing of registry) {
-    if (existing.email === email) {
-      throw new Error('email already registered')
-    }
+    if (existing.email === email) { throw new Error('email already registered'); }
   }
   const user = { id: String(registry.length + 1), email, passwordHash: hash }
   registry.push(user)
