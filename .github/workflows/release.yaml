@@ -54,6 +54,14 @@ jobs:
       - name: Verify the integrity of provenance attestations and registry signatures for installed dependencies
         run: npm audit signatures
 
+      # Explicit build is required: the repo's .npmrc sets `ignore-scripts=true`, which
+      # suppresses every lifecycle hook — including `prepublishOnly` — during `npm publish`.
+      # Without this step semantic-release packs an empty `dist/` and ships a broken tarball
+      # (the cause of the 1.0.0/1.0.1 ERR_MODULE_NOT_FOUND). An explicit `npm run` still
+      # executes under ignore-scripts, so dependency install scripts stay disabled.
+      - name: Build
+        run: npm run build
+
       - name: Create new release
         uses: cycjimmy/semantic-release-action@v6
         id: semantic   
