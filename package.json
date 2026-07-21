@@ -1,6 +1,6 @@
 {
   "name": "agent-eslint-config",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Overly opionated eslint config for agents. Forces them to write low complexity and highly readable code. Supports: Claude, Gemini, Codex and many more.",
   "author": "Vlad Goncharov <vlad.goncharov@neolab.com>",
   "license": "MIT",
